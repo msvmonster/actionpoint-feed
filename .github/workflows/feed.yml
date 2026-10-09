@@ -1,14 +1,16 @@
-# Rebuilds the Action Point product feed every 3 hours and publishes it on GitHub Pages.
+# Rebuilds the Action Point product feed every hour and publishes it on GitHub Pages.
 # Meta / Google then fetch the published URL on their own schedule. No Shopify app involved.
 name: Product feed
 on:
   schedule:
-    - cron: "17 */3 * * *"
+    # off the top of the hour: GitHub drops scheduled runs when it is busy, so hourly gives plenty of chances
+    - cron: "41 * * * *"
   workflow_dispatch:
 permissions:
   contents: read
   pages: write
   id-token: write
+  actions: write   # keep-alive below
 concurrency:
   group: feed
   cancel-in-progress: true
@@ -38,3 +40,9 @@ jobs:
           path: public
       - id: deploy
         uses: actions/deploy-pages@v4
+      # GitHub switches off schedules after 60 days without commits; re-enabling keeps this running for good
+      - name: Keep the schedule alive
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/feed.yml/enable" || true
