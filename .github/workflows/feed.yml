@@ -1,0 +1,40 @@
+# Rebuilds the Action Point product feed every 3 hours and publishes it on GitHub Pages.
+# Meta / Google then fetch the published URL on their own schedule. No Shopify app involved.
+name: Product feed
+on:
+  schedule:
+    - cron: "17 */3 * * *"
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: feed
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build feed
+        run: FEED_OUT=public python3 build_feed.py
+      - name: Refuse to publish a broken or empty feed
+        run: |
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET, sys
+          n = len(ET.parse("public/actionpoint-google-feed.xml").getroot().findall("./channel/item"))
+          print(n, "items")
+          sys.exit(0 if n > 1000 else 1)
+          PY
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+      - id: deploy
+        uses: actions/deploy-pages@v4
