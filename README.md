@@ -1,7 +1,7 @@
 # Action Point product feed – automatic sync
 
 **Live feed:** https://msvmonster.github.io/actionpoint-feed/actionpoint-google-feed.xml
-(spreadsheet copy: `actionpoint-products.tsv` at the same address). Rebuilt every 3 hours.
+(spreadsheet copy: `actionpoint-products.tsv` at the same address). Rebuilt every hour.
 
 ## Status (9 Oct 2026)
 Switched over. Meta catalogue "Flexify Product Catalog" → data source "New data feed for Flexify Product Catalog"
