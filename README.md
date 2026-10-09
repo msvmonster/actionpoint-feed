@@ -1,5 +1,16 @@
 # Action Point product feed – automatic sync
 
+**Live feed:** https://msvmonster.github.io/actionpoint-feed/actionpoint-google-feed.xml
+(spreadsheet copy: `actionpoint-products.tsv` at the same address). Rebuilt every 3 hours.
+
+## Replacing Flexify without breaking ads
+1. Check which ID format the current Meta catalogue uses (Commerce Manager → Catalogue → Items → open any item → Content ID).
+   - A long number like `41234567890123` → keep `FEED_ID_FORMAT: variant` (the default).
+   - `shopify_SG_…_…` → set `FEED_ID_FORMAT: shopify` in `.github/workflows/feed.yml` and run the workflow once.
+2. Commerce Manager → the **same** catalogue → Data sources → Add items → Data feed → Scheduled feed → paste the live feed URL → Hourly → SGD.
+3. When the new source shows its items, delete the Flexify data source from that catalogue.
+4. Then uninstall Flexify in Shopify (Apps → Flexify → Uninstall). Billing stops when the app is removed.
+
 Rebuilds the full catalogue feed every 3 hours and publishes it at a fixed web address.
 Meta (and Google) fetch that address on a schedule, so the catalogue stays in sync with no Shopify app.
 
