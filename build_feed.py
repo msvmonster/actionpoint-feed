@@ -24,6 +24,10 @@ NM_CONDITION = "new"          # what Near Mint singles are sent as
 ID_FORMAT = os.environ.get("FEED_ID_FORMAT", "variant")
 COUNTRY = os.environ.get("FEED_COUNTRY", "SG")
 MAX_PAGES = int(os.environ.get("FEED_MAX_PAGES", "200"))
+# Ad titles: "product" = just the card name, variants told apart by additional_variant_attribute (what Flexify sent);
+#            "variant" = card name + " – Near Mint / English / Normal" (Google Merchant prefers this)
+TITLE_STYLE = os.environ.get("FEED_TITLE_STYLE", "product")
+SKIP_OPTIONS = {"title", "condition"}   # condition already has its own field
 INCLUDE_SOLD_OUT = "--all" in sys.argv
 OUT = os.environ.get("FEED_OUT") or os.path.dirname(os.path.abspath(__file__))
 os.makedirs(OUT, exist_ok=True)
@@ -63,6 +67,7 @@ def rows():
             desc = text(p.get("body_html"))[:4900] or f"{title} – {p.get('vendor','')} – {game} single from Action Point Games"
             image = (p.get("images") or [{}])[0].get("src", "")
             preorder = "Preorder" in (p.get("tags") or [])
+            options = [o.get("name", "") for o in (p.get("options") or [])]
             for v in p["variants"]:
                 if not v["available"] and not INCLUDE_SOLD_OUT: continue
                 cond = "new"
@@ -70,11 +75,13 @@ def rows():
                 vimg = (v.get("featured_image") or {}).get("src") or image
                 if not vimg:
                     NO_IMAGE.add(f"{STORE}/products/{p['handle']}"); continue
+                attrs = [(n, v.get(f"option{i+1}") or "") for i, n in enumerate(options[:3])]
+                attrs = [(n, val) for n, val in attrs if val and n.lower() not in SKIP_OPTIONS]
                 price = float(v["price"])
                 was = float(v.get("compare_at_price") or 0)
                 yield {
                     "id": item_id(p, v), "item_group_id": str(p["id"]),
-                    "title": (title if v["title"] == "Default Title" else f"{title} – {v['title']}")[:150],
+                    "title": (title if TITLE_STYLE == "product" or v["title"] == "Default Title" else f"{title} – {v['title']}")[:150],
                     "description": desc, "link": f"{STORE}/products/{p['handle']}?variant={v['id']}",
                     "image_link": vimg,
                     "availability": "out_of_stock" if not v["available"] else "preorder" if preorder else "in_stock",
@@ -87,6 +94,8 @@ def rows():
                     "product_type": f"{game} > {p.get('vendor','')}",
                     "custom_label_0": game, "custom_label_1": p.get("vendor") or "",
                     "custom_label_2": "high-end" if price >= 50 else "mid" if price >= 10 else "budget",
+                    "additional_variant_attribute": ",".join(f"{n}:{val}" for n, val in attrs),
+                    "_attrs": attrs,
                 }
         print(f"  page {page}: {len(products)} products", file=sys.stderr)
         page += 1
@@ -94,12 +103,15 @@ def rows():
 items = list(rows())
 if not items:
     raise SystemExit("No items built; refusing to write an empty feed")
-cols = list(items[0].keys())
+cols = [c for c in items[0].keys() if not c.startswith("_")]
 with open(os.path.join(OUT, "actionpoint-google-feed.xml"), "w", encoding="utf-8") as f:
     f.write('<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">\n<channel>\n')
     f.write(f"<title>Action Point Games</title>\n<link>{STORE}</link>\n<description>Action Point Games product feed</description>\n")
     for it in items:
-        f.write("<item>\n" + "".join(f"<g:{k}>{escape(v)}</g:{k}>\n" for k, v in it.items() if v) + "</item>\n")
+        f.write("<item>\n" + "".join(f"<g:{k}>{escape(v)}</g:{k}>\n" for k, v in it.items() if v and k in cols and k != "additional_variant_attribute"))
+        # Meta's variant attributes (language, printing): plain tags, one block per attribute
+        f.write("".join(f"<additional_variant_attribute><label>{escape(n.lower())}</label><value>{escape(val)}</value></additional_variant_attribute>\n" for n, val in it["_attrs"]))
+        f.write("</item>\n")
     f.write("</channel>\n</rss>\n")
 with open(os.path.join(OUT, "actionpoint-products.tsv"), "w", encoding="utf-8") as f:
     f.write("\t".join(cols) + "\n")
